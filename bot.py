@@ -35,10 +35,11 @@ def main():
             CommandHandler('start', start),
             CallbackQueryHandler(new_trip_start, pattern='^new_trip$'),
             CallbackQueryHandler(trips_menu, pattern='^trips_menu$'),
-            CallbackQueryHandler(trip_detail, pattern='^trip_'),
+            CallbackQueryHandler(trip_detail, pattern='^trip_[A-Z0-9]+$'),
+            CallbackQueryHandler(trip_detail, pattern='^archive_detail_'),
             CallbackQueryHandler(booking_add_start, pattern='^add_booking_'),
             CallbackQueryHandler(booking_list, pattern='^booking_list_'),
-            CallbackQueryHandler(booking_detail, pattern='^booking_'),
+            CallbackQueryHandler(booking_detail, pattern='^booking_[A-Z0-9]+$'),
             CallbackQueryHandler(stats_menu, pattern='^stats$'),
             CallbackQueryHandler(stats_detail, pattern='^stats_'),
             CallbackQueryHandler(archive_list, pattern='^archive$'),
@@ -58,21 +59,19 @@ def main():
             TRIP_SEATS: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, new_trip_seats),
             ],
-            TRIP_PRICE: [
-                MessageHandler(filters.TEXT & ~filters.COMMAND, new_trip_price),
-            ],
             TRIP_CONFIRM: [
-                CallbackQueryHandler(new_trip_confirm, pattern='^trip_create_'),
+                CallbackQueryHandler(new_trip_confirm, pattern='^trip_create_confirm$'),
+                CallbackQueryHandler(new_trip_confirm, pattern='^trip_create_restart$'),
             ],
             TRIP_EDIT_MENU: [
                 CallbackQueryHandler(trip_edit_menu, pattern='^tedit_'),
-                CallbackQueryHandler(trip_detail, pattern='^trip_'),
+                CallbackQueryHandler(trip_detail, pattern='^trip_[A-Z0-9]+$'),
             ],
             TRIP_EDIT_FIELD: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, trip_edit_field),
             ],
             ARCHIVE_CONFIRM: [
-                CallbackQueryHandler(archive_confirm, pattern='^confirm_archive_|^trip_'),
+                CallbackQueryHandler(archive_confirm),
             ],
             BOOKING_LINK: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, booking_link),
@@ -99,7 +98,8 @@ def main():
                 MessageHandler(filters.TEXT & ~filters.COMMAND, booking_comment),
             ],
             BOOKING_CONFIRM: [
-                CallbackQueryHandler(booking_confirm, pattern='^booking_save|^booking_edit_restart'),
+                CallbackQueryHandler(booking_confirm, pattern='^booking_save$'),
+                CallbackQueryHandler(booking_confirm, pattern='^booking_edit_restart$'),
             ],
             BOOKING_EDIT_MENU: [
                 CallbackQueryHandler(booking_edit_menu, pattern='^bedit_|^bdelete_|^confirm_delete_'),
@@ -117,7 +117,7 @@ def main():
                 MessageHandler(filters.TEXT & ~filters.COMMAND, booking_edit_link),
             ],
             BOOKING_DELETE_CONFIRM: [
-                CallbackQueryHandler(booking_delete_confirm, pattern='^confirm_delete_|^booking_'),
+                CallbackQueryHandler(booking_delete_confirm),
             ],
             SEARCH_QUERY: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, search_query),
