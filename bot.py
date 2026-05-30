@@ -1,5 +1,4 @@
 import logging
-import asyncio
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, filters, ConversationHandler
 from config import BOT_TOKEN
 from handlers import (
@@ -34,7 +33,6 @@ def main():
     conv_handler = ConversationHandler(
         entry_points=[
             CommandHandler('start', start),
-            MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu),
             CallbackQueryHandler(trips_menu, pattern='^trips_menu$'),
             CallbackQueryHandler(new_trip_start, pattern='^new_trip$'),
             CallbackQueryHandler(trip_detail, pattern='^trip_'),
@@ -46,9 +44,9 @@ def main():
             CallbackQueryHandler(restore_trip, pattern='^restore_trip_'),
             CallbackQueryHandler(search_start, pattern='^search$'),
             CallbackQueryHandler(report_menu, pattern='^report$'),
+            MessageHandler(filters.TEXT & ~filters.COMMAND, main_menu),
         ],
         states={
-            # New trip
             TRIP_COMPANY: [CallbackQueryHandler(new_trip_company)],
             TRIP_ROUTE: [MessageHandler(filters.TEXT & ~filters.COMMAND, new_trip_route)],
             TRIP_DATE: [MessageHandler(filters.TEXT & ~filters.COMMAND, new_trip_date)],
@@ -56,14 +54,11 @@ def main():
             TRIP_PRICE: [MessageHandler(filters.TEXT & ~filters.COMMAND, new_trip_price)],
             TRIP_CONFIRM: [CallbackQueryHandler(new_trip_confirm)],
 
-            # Edit trip
             TRIP_EDIT_MENU: [CallbackQueryHandler(trip_edit_menu)],
             TRIP_EDIT_FIELD: [MessageHandler(filters.TEXT & ~filters.COMMAND, trip_edit_field)],
 
-            # Archive
             ARCHIVE_CONFIRM: [CallbackQueryHandler(archive_confirm)],
 
-            # New booking
             BOOKING_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, booking_link)],
             BOOKING_CITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, booking_city)],
             BOOKING_PASSENGERS_COUNT: [CallbackQueryHandler(booking_passengers_count)],
@@ -74,7 +69,6 @@ def main():
             BOOKING_COMMENT: [MessageHandler(filters.TEXT & ~filters.COMMAND, booking_comment)],
             BOOKING_CONFIRM: [CallbackQueryHandler(booking_confirm)],
 
-            # Edit booking
             BOOKING_EDIT_MENU: [CallbackQueryHandler(booking_edit_menu)],
             BOOKING_EDIT_CITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, booking_edit_city)],
             BOOKING_EDIT_PAID: [MessageHandler(filters.TEXT & ~filters.COMMAND, booking_edit_paid)],
@@ -82,10 +76,7 @@ def main():
             BOOKING_EDIT_LINK: [MessageHandler(filters.TEXT & ~filters.COMMAND, booking_edit_link)],
             BOOKING_DELETE_CONFIRM: [CallbackQueryHandler(booking_delete_confirm)],
 
-            # Search
             SEARCH_QUERY: [MessageHandler(filters.TEXT & ~filters.COMMAND, search_query)],
-
-            # Stats detail
             STATS_DETAIL: [CallbackQueryHandler(stats_detail)],
         },
         fallbacks=[
