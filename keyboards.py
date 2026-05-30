@@ -8,8 +8,7 @@ def main_keyboard():
             ['🗺 Поездки', '🔍 Найти'],
             ['📦 Архив', '📊 Статистика'],
         ],
-        resize_keyboard=True,
-        persistent=True
+        resize_keyboard=True
     )
 
 # ─── СПИСОК ПОЕЗДОК ───────────────────────────────────
