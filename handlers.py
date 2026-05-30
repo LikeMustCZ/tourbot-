@@ -134,7 +134,7 @@ async def new_trip_company(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     company = query.data.replace('company_', '')
     ctx.user_data['new_trip']['company'] = company
-    await query.edit_message_text(f"✅ Фирма: *{company}*\n\n📍 Введи маршрут:\n_(например: Прага → Верона)_", parse_mode=ParseMode.MARKDOWN)
+    await query.edit_message_text(f"✅ Фирма: *{company}*\n\n📍 Введи название поездки:\n_(например: Рим 15.08 или Верона/Венеция 20.08)_", parse_mode=ParseMode.MARKDOWN)
     return TRIP_ROUTE
 
 async def new_trip_route(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
