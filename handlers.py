@@ -1,7 +1,6 @@
 from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 from telegram.constants import ParseMode
-from datetime import datetime
 
 from states import *
 from keyboards import *
@@ -17,9 +16,10 @@ def user_name(update):
     u = update.effective_user
     return u.username or u.full_name or str(u.id)
 
-# ─── START ────────────────────────────────────────────
+# ─── START / CANCEL ───────────────────────────────────
 
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    ctx.user_data.clear()
     await update.message.reply_text(
         "👋 Привет! Я бот для управления бронями Happy Tours и Your Perfect Travel.\n\n"
         "Используй кнопки внизу для навигации.",
@@ -52,7 +52,7 @@ async def show_trips(update, ctx):
     trips = get_all_trips('active')
     if not trips:
         await update.message.reply_text(
-            "Активных поездок нет.\nСоздай первую!",
+            "Активных поездок нет. Создай первую!",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('➕ Новая поездка', callback_data='new_trip')]])
         )
     else:
@@ -69,7 +69,7 @@ async def trips_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     trips = get_all_trips('active')
     if not trips:
         await query.edit_message_text(
-            "Активных поездок нет.",
+            "Активных поездок нет. Создай первую!",
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('➕ Новая поездка', callback_data='new_trip')]])
         )
     else:
@@ -115,7 +115,7 @@ def format_trip_detail(trip, stats):
     balance = f"{stats['total_balance']:,.0f}" if stats else "0"
     return (
         f"🗺 *{trip['Route']}*\n"
-        f"📅 {trip['Date']} | {trip['Company']}\n"
+        f"🏢 {trip['Company']}\n"
         f"💺 Мест: {seats_info}\n"
         f"💰 Собрано: {paid} | Долг: {balance}"
     )
@@ -134,17 +134,15 @@ async def new_trip_company(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     company = query.data.replace('company_', '')
     ctx.user_data['new_trip']['company'] = company
-    await query.edit_message_text(f"✅ Фирма: *{company}*\n\n📍 Введи название поездки:\n_(например: Рим 15.08 или Верона/Венеция 20.08)_", parse_mode=ParseMode.MARKDOWN)
+    await query.edit_message_text(
+        f"✅ Фирма: *{company}*\n\n"
+        f"📍 Введи название поездки:\n_(например: Рим 3-6 июля или Верона/Венеция 20.08)_",
+        parse_mode=ParseMode.MARKDOWN
+    )
     return TRIP_ROUTE
 
 async def new_trip_route(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data['new_trip']['route'] = update.message.text
-    ctx.user_data['new_trip']['date'] = ''
-    await update.message.reply_text("💺 Сколько мест в автобусе?")
-    return TRIP_SEATS
-
-async def new_trip_date(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    ctx.user_data['new_trip']['date'] = update.message.text
     await update.message.reply_text("💺 Сколько мест в автобусе?")
     return TRIP_SEATS
 
@@ -152,7 +150,6 @@ async def new_trip_seats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     try:
         seats = int(update.message.text)
         ctx.user_data['new_trip']['seats'] = seats
-        ctx.user_data['new_trip']['price'] = ''
         d = ctx.user_data['new_trip']
         text = (
             f"📋 *Проверь данные:*\n\n"
@@ -175,20 +172,17 @@ async def new_trip_seats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Введи число, например: 40")
         return TRIP_SEATS
 
-async def new_trip_price(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    pass
-
-
 async def new_trip_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+
     if query.data == 'trip_create_restart':
         ctx.user_data['new_trip'] = {}
         await query.edit_message_text("🏢 Выбери фирму:", reply_markup=company_keyboard())
         return TRIP_COMPANY
 
     d = ctx.user_data['new_trip']
-    trip_id = create_trip(d['company'], d['route'], d['date'], d['seats'], d['price'], user_name(update))
+    trip_id = create_trip(d['company'], d['route'], d['seats'], user_name(update))
     ctx.user_data.clear()
     await query.edit_message_text(
         f"✅ *Поездка создана!*\n\n{d['route']}\nID: `{trip_id}`",
@@ -196,6 +190,9 @@ async def new_trip_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🗺 К поездкам', callback_data='trips_menu')]])
     )
     return ConversationHandler.END
+
+async def new_trip_price(update, ctx):
+    pass
 
 async def new_trip_save(update, ctx):
     pass
@@ -219,8 +216,8 @@ async def trip_edit_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         trip_id = parts[2]
         ctx.user_data['edit_trip_id'] = trip_id
         ctx.user_data['edit_trip_field'] = field
-        field_names = {'Route': 'маршрут', 'Date': 'дату', 'Total Seats': 'кол-во мест', 'Price': 'цену'}
-        await query.edit_message_text(f"✏️ Введи новый {field_names.get(field, field)}:")
+        field_names = {'Route': 'название поездки', 'Total Seats': 'кол-во мест'}
+        await query.edit_message_text(f"✏️ Введи новое значение ({field_names.get(field, field)}):")
         return TRIP_EDIT_FIELD
 
     return ConversationHandler.END
@@ -258,7 +255,7 @@ async def archive_trip(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     balance = f"{stats['total_balance']:,.0f}" if stats else "0"
     text = (
         f"📦 *Архивировать поездку?*\n\n"
-        f"{trip['Route']} | {trip['Date']}\n"
+        f"{trip['Route']}\n"
         f"💺 {seats} мест | Собрано: {paid} | Долг: {balance}\n\n"
         f"Данные сохранятся в таблице."
     )
@@ -322,10 +319,12 @@ async def booking_add_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     trip_id = query.data.replace('add_booking_', '')
     trip = get_trip_by_id(trip_id)
-    ctx.user_data['new_booking'] = {'trip_id': trip_id}
-    ctx.user_data['new_booking']['trip_name'] = f"{trip['Route']} {trip['Date']}"
+    ctx.user_data['new_booking'] = {
+        'trip_id': trip_id,
+        'trip_name': trip['Route'] if trip else trip_id
+    }
     await query.edit_message_text(
-        f"➕ *Новая бронь*\n_{trip['Route']} | {trip['Date']}_\n\n"
+        f"➕ *Новая бронь*\n_{ctx.user_data['new_booking']['trip_name']}_\n\n"
         f"🔗 Ссылка на клиента:\n_(Instagram, Telegram или напиши 'нет')_",
         parse_mode=ParseMode.MARKDOWN
     )
@@ -349,7 +348,7 @@ async def booking_passengers_count(update: Update, ctx: ContextTypes.DEFAULT_TYP
     ctx.user_data['new_booking']['passengers'] = []
     ctx.user_data['new_booking']['phones'] = []
     ctx.user_data['new_booking']['current_passenger'] = 1
-    await query.edit_message_text(f"👤 Пассажир 1 — Имя Фамилия:")
+    await query.edit_message_text("👤 Пассажир 1 — Имя Фамилия:")
     return BOOKING_PASSENGER_NAME
 
 async def booking_passenger_name(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -375,16 +374,13 @@ async def booking_passenger_phone(update: Update, ctx: ContextTypes.DEFAULT_TYPE
 
 async def booking_paid(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data['new_booking']['paid'] = update.message.text
-    await update.message.reply_text(
-        "💳 Остаток к доплате?\n_(введи сумму или 0)_",
-        parse_mode=ParseMode.MARKDOWN
-    )
+    await update.message.reply_text("💳 Остаток к доплате?\n_(введи сумму или 0)_", parse_mode=ParseMode.MARKDOWN)
     return BOOKING_BALANCE
 
 async def booking_balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data['new_booking']['balance'] = update.message.text
     await update.message.reply_text(
-        "💬 Комментарий?\n_(место у окна, день рождения, номер в отеле и т.п. или напиши 'нет')_",
+        "💬 Комментарий?\n_(место у окна, день рождения и т.п. или напиши 'нет')_",
         parse_mode=ParseMode.MARKDOWN
     )
     return BOOKING_COMMENT
@@ -396,7 +392,10 @@ async def booking_comment(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data['new_booking']['comment'] = comment
     b = ctx.user_data['new_booking']
 
-    passengers_list = '\n'.join([f"  {i+1}. {p} | {ph}" for i, (p, ph) in enumerate(zip(b['passengers'], b['phones']))])
+    passengers_list = '\n'.join([
+        f"  {i+1}. {p} | {ph}"
+        for i, (p, ph) in enumerate(zip(b['passengers'], b['phones']))
+    ])
     balance_val = float(str(b['balance']).replace(',', '.') or 0)
     debt_icon = '⚠️' if balance_val > 0 else '✅'
 
@@ -419,7 +418,8 @@ async def booking_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if query.data == 'booking_edit_restart':
         b = ctx.user_data['new_booking']
         trip_id = b['trip_id']
-        ctx.user_data['new_booking'] = {'trip_id': trip_id, 'trip_name': b['trip_name']}
+        trip_name = b['trip_name']
+        ctx.user_data['new_booking'] = {'trip_id': trip_id, 'trip_name': trip_name}
         await query.edit_message_text(
             "🔗 Ссылка на клиента:\n_(Instagram, Telegram или 'нет')_",
             parse_mode=ParseMode.MARKDOWN
@@ -456,7 +456,7 @@ async def booking_list(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     trip_id = query.data.replace('booking_list_', '')
     bookings = get_bookings_by_trip(trip_id)
     trip = get_trip_by_id(trip_id)
-    trip_name = f"{trip['Route']} | {trip['Date']}" if trip else trip_id
+    trip_name = trip['Route'] if trip else trip_id
 
     if not bookings:
         await query.edit_message_text(
@@ -484,7 +484,6 @@ async def booking_detail(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     data = query.data
 
-    # edit/delete callbacks
     if data.startswith('bedit_') or data.startswith('bdelete_') or data.startswith('confirm_delete_'):
         return await booking_edit_menu(update, ctx)
 
@@ -501,11 +500,11 @@ async def booking_detail(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     phones = b.get('Phones', '').split(' | ')
     passengers_list = '\n'.join([f"  {i+1}. {p} | {ph}" for i, (p, ph) in enumerate(zip(passengers, phones))])
     balance_val = float(str(b.get('Balance', 0) or 0).replace(',', '.'))
-    debt_icon = '⚠️ Долг: ' + str(b.get('Balance', 0)) if balance_val > 0 else '✅ Оплачено полностью'
+    debt_icon = f"⚠️ Долг: {b.get('Balance', 0)}" if balance_val > 0 else "✅ Оплачено"
 
     text = (
         f"👤 *Бронь {booking_id}*\n\n"
-        f"🗺 {b.get('Route', '')} | {b.get('Date', '')}\n"
+        f"🗺 {b.get('Route', '')}\n"
         f"🔗 {b.get('Link', '—')}\n"
         f"🏙 {b.get('City', '')}\n"
         f"👥 Пассажиры:\n{passengers_list}\n"
@@ -581,10 +580,7 @@ async def booking_edit_city(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     booking_id = ctx.user_data.get('edit_booking_id')
     update_booking(booking_id, 'City', update.message.text, user_name(update))
     b = get_booking_by_id(booking_id)
-    await update.message.reply_text(
-        "✅ Город обновлён.",
-        reply_markup=booking_detail_keyboard(booking_id, b.get('Trip ID', ''))
-    )
+    await update.message.reply_text("✅ Город обновлён.", reply_markup=booking_detail_keyboard(booking_id, b.get('Trip ID', '')))
     return ConversationHandler.END
 
 async def booking_edit_paid(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -612,20 +608,14 @@ async def booking_edit_comment(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     booking_id = ctx.user_data.get('edit_booking_id')
     update_booking(booking_id, 'Comment', update.message.text, user_name(update))
     b = get_booking_by_id(booking_id)
-    await update.message.reply_text(
-        "✅ Комментарий обновлён.",
-        reply_markup=booking_detail_keyboard(booking_id, b.get('Trip ID', ''))
-    )
+    await update.message.reply_text("✅ Комментарий обновлён.", reply_markup=booking_detail_keyboard(booking_id, b.get('Trip ID', '')))
     return ConversationHandler.END
 
 async def booking_edit_link(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     booking_id = ctx.user_data.get('edit_booking_id')
     update_booking(booking_id, 'Link', update.message.text, user_name(update))
     b = get_booking_by_id(booking_id)
-    await update.message.reply_text(
-        "✅ Ссылка обновлена.",
-        reply_markup=booking_detail_keyboard(booking_id, b.get('Trip ID', ''))
-    )
+    await update.message.reply_text("✅ Ссылка обновлена.", reply_markup=booking_detail_keyboard(booking_id, b.get('Trip ID', '')))
     return ConversationHandler.END
 
 async def booking_delete_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -641,10 +631,7 @@ async def booking_delete_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
         booking_id = ctx.user_data.get('edit_booking_id')
         b = get_booking_by_id(booking_id)
         trip_id = b.get('Trip ID', '') if b else ''
-        await query.edit_message_text(
-            "❌ Удаление отменено.",
-            reply_markup=booking_detail_keyboard(booking_id, trip_id)
-        )
+        await query.edit_message_text("❌ Удаление отменено.", reply_markup=booking_detail_keyboard(booking_id, trip_id))
     return ConversationHandler.END
 
 async def booking_delete(update, ctx, booking_id, trip_id):
@@ -699,7 +686,7 @@ async def stats_detail(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     with_debt = [b for b in bookings if float(str(b.get('Balance', 0) or 0).replace(',', '.')) > 0]
 
     text = (
-        f"📊 *{trip['Route']} | {trip['Date']}*\n"
+        f"📊 *{trip['Route']}*\n"
         f"🏢 {trip['Company']}\n\n"
         f"💺 Мест занято: {stats['passengers_count']}/{stats['total_seats']}\n"
         f"   Свободно: {stats['free_seats']}\n\n"
@@ -742,7 +729,7 @@ async def search_query(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         debt = f" | Долг: {b.get('Balance', 0)}" if balance_val > 0 else " | ✅"
         lines.append(
             f"*{passengers}*\n"
-            f"🗺 {b.get('Route', '')} {b.get('Date', '')} | {b.get('Company', '')}\n"
+            f"🗺 {b.get('Route', '')} | {b.get('Company', '')}\n"
             f"📱 {b.get('Phones', '')} | 🏙 {b.get('City', '')}{debt}"
         )
         buttons.append([InlineKeyboardButton(f"Открыть: {passengers[:30]}", callback_data=f"booking_{b['ID']}")])

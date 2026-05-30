@@ -28,19 +28,21 @@ def generate_id():
 
 # ─── TRIPS ───────────────────────────────────────────
 
-def create_trip(company, route, date, seats, price, user_name):
+def create_trip(company, route, seats, user_name):
     sheet = get_trips_sheet()
     trip_id = generate_id()
     now = datetime.now().strftime('%d.%m.%Y %H:%M')
-    row = [trip_id, company, route, date, seats, price, '', 'active', '', now]
+    # Columns: ID, Company, Route, Date, Total Seats, Price, Default City, Status, Archived At, Created At
+    row = [trip_id, company, route, '', seats, '', '', 'active', '', now]
     sheet.append_row(row)
-    log_action(user_name, 'Создана поездка', f'{route} {date}')
+    log_action(user_name, 'Создана поездка', route)
     return trip_id
 
 def get_all_trips(status='active'):
     sheet = get_trips_sheet()
     records = sheet.get_all_records()
-    return [r for r in records if r.get('Status') == status]
+    # Filter out empty/bad rows
+    return [r for r in records if r.get('ID') and str(r.get('Status', '')) == status]
 
 def get_trip_by_id(trip_id):
     sheet = get_trips_sheet()
@@ -99,23 +101,23 @@ def create_booking(trip_id, link, city, passengers, phones, paid, balance, comme
     booking_id = generate_id()
     now = datetime.now().strftime('%d.%m.%Y %H:%M')
     route = trip.get('Route', '') if trip else ''
-    date = trip.get('Date', '') if trip else ''
     company = trip.get('Company', '') if trip else ''
     passengers_str = ' | '.join(passengers)
     phones_str = ' | '.join(phones)
+    # Columns: ID, Trip ID, Route, Company, Link, City, Passengers, Phones, Paid, Balance, Comment, Added By, Created At, Updated At
     row = [
-        booking_id, trip_id, route, date, company,
+        booking_id, trip_id, route, company,
         link, city, passengers_str, phones_str,
         paid, balance, comment, user_name, now, now
     ]
     sheet.append_row(row)
-    log_action(user_name, 'Добавлена бронь', f'{passengers_str} → {route} {date}')
+    log_action(user_name, 'Добавлена бронь', f'{passengers_str} → {route}')
     return booking_id
 
 def get_bookings_by_trip(trip_id):
     sheet = get_bookings_sheet()
     records = sheet.get_all_records()
-    return [r for r in records if str(r.get('Trip ID')) == str(trip_id)]
+    return [r for r in records if r.get('ID') and str(r.get('Trip ID', '')) == str(trip_id)]
 
 def get_booking_by_id(booking_id):
     sheet = get_bookings_sheet()
@@ -157,6 +159,8 @@ def search_bookings(query):
     query = query.lower()
     results = []
     for r in records:
+        if not r.get('ID'):
+            continue
         searchable = ' '.join([
             str(r.get('Passengers', '')),
             str(r.get('Phones', '')),
@@ -174,20 +178,20 @@ def get_trip_stats(trip_id):
     if not trip:
         return None
     bookings = get_bookings_by_trip(trip_id)
-    total_seats = int(trip.get('Total Seats', 0))
+    total_seats = int(trip.get('Total Seats', 0) or 0)
     passengers_count = sum(
         len(b.get('Passengers', '').split(' | '))
         for b in bookings
         if b.get('Passengers')
     )
-    total_paid = sum(float(str(b.get('Paid', 0)).replace(',', '.') or 0) for b in bookings)
-    total_balance = sum(float(str(b.get('Balance', 0)).replace(',', '.') or 0) for b in bookings)
+    total_paid = sum(float(str(b.get('Paid', 0) or 0).replace(',', '.')) for b in bookings)
+    total_balance = sum(float(str(b.get('Balance', 0) or 0).replace(',', '.')) for b in bookings)
     return {
         'trip': trip,
         'bookings_count': len(bookings),
         'passengers_count': passengers_count,
         'total_seats': total_seats,
-        'free_seats': total_seats - passengers_count,
+        'free_seats': max(0, total_seats - passengers_count),
         'total_paid': total_paid,
         'total_balance': total_balance,
     }
@@ -226,7 +230,7 @@ def get_daily_report():
                 balance = stats['total_balance']
                 total_balance_all += balance
                 lines.append(
-                    f"• {trip['Route']} {trip['Date']} — "
+                    f"• {trip['Route']} — "
                     f"{stats['passengers_count']}/{stats['total_seats']} мест\n"
                     f"  Собрано: {stats['total_paid']:,.0f} | Ждём: {balance:,.0f}"
                 )
