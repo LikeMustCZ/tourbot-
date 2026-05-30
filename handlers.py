@@ -163,8 +163,7 @@ async def new_trip_price(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     text = (
         f"📋 *Проверь данные:*\n\n"
         f"🏢 Фирма: {d['company']}\n"
-        f"🗺 Маршрут: {d['route']}\n"
-        f"📅 Дата: {d['date']}\n"
+        f"🗺 Поездка: {d['route']}\n"
         f"💺 Мест: {d['seats']}\n"
         f"💰 Цена: {d['price']}"
     )
@@ -192,7 +191,7 @@ async def new_trip_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     trip_id = create_trip(d['company'], d['route'], d['date'], d['seats'], d['price'], user_name(update))
     ctx.user_data.clear()
     await query.edit_message_text(
-        f"✅ *Поездка создана!*\n\n{d['route']} | {d['date']}\nID: `{trip_id}`",
+        f"✅ *Поездка создана!*\n\n{d['route']}\nID: `{trip_id}`",
         parse_mode=ParseMode.MARKDOWN,
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('🗺 К поездкам', callback_data='trips_menu')]])
     )
