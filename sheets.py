@@ -32,7 +32,7 @@ def create_trip(company, route, date, seats, price, user_name):
     sheet = get_trips_sheet()
     trip_id = generate_id()
     now = datetime.now().strftime('%d.%m.%Y %H:%M')
-    row = [trip_id, company, route, date, seats, price, 'active', '', now]
+    row = [trip_id, company, route, date, seats, price, '', 'active', '', now]
     sheet.append_row(row)
     log_action(user_name, 'Создана поездка', f'{route} {date}')
     return trip_id
