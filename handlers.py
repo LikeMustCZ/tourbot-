@@ -152,33 +152,32 @@ async def new_trip_seats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     try:
         seats = int(update.message.text)
         ctx.user_data['new_trip']['seats'] = seats
-        await update.message.reply_text("💰 Цена места?\n_(например: 1325 CZK)_", parse_mode=ParseMode.MARKDOWN)
-        return TRIP_PRICE
+        ctx.user_data['new_trip']['price'] = ''
+        d = ctx.user_data['new_trip']
+        text = (
+            f"📋 *Проверь данные:*\n\n"
+            f"🏢 Фирма: {d['company']}\n"
+            f"🗺 Поездка: {d['route']}\n"
+            f"💺 Мест: {d['seats']}"
+        )
+        await update.message.reply_text(
+            text,
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton('✅ Создать', callback_data='trip_create_confirm'),
+                    InlineKeyboardButton('✏️ Исправить', callback_data='trip_create_restart'),
+                ]
+            ])
+        )
+        return TRIP_CONFIRM
     except ValueError:
         await update.message.reply_text("⚠️ Введи число, например: 40")
         return TRIP_SEATS
 
 async def new_trip_price(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    ctx.user_data['new_trip']['price'] = update.message.text
-    d = ctx.user_data['new_trip']
-    text = (
-        f"📋 *Проверь данные:*\n\n"
-        f"🏢 Фирма: {d['company']}\n"
-        f"🗺 Поездка: {d['route']}\n"
-        f"💺 Мест: {d['seats']}\n"
-        f"💰 Цена: {d['price']}"
-    )
-    await update.message.reply_text(
-        text,
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton('✅ Создать', callback_data='trip_create_confirm'),
-                InlineKeyboardButton('✏️ Исправить', callback_data='trip_create_restart'),
-            ]
-        ])
-    )
-    return TRIP_CONFIRM
+    pass
+
 
 async def new_trip_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
