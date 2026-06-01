@@ -17,7 +17,7 @@ def main_keyboard():
 def trips_list_keyboard(trips):
     buttons = []
     for trip in trips:
-        label = f"{trip['Route']}"
+        label = trip['Route']
         buttons.append([InlineKeyboardButton(label, callback_data=f"trip_{trip['ID']}")])
     buttons.append([InlineKeyboardButton('➕ Новая поездка', callback_data='new_trip')])
     return InlineKeyboardMarkup(buttons)
