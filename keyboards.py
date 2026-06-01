@@ -7,6 +7,7 @@ def main_keyboard():
         [
             ['🗺 Поездки', '🔍 Найти'],
             ['📦 Архив', '📊 Статистика'],
+            ['↩️ Назад / Отмена'],
         ],
         resize_keyboard=True
     )
@@ -185,4 +186,11 @@ def skip_keyboard():
 def cancel_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton('❌ Отмена / В меню', callback_data='cancel_flow')]
+    ])
+
+def company_filter_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton('Happy Tours', callback_data='filter_company_Happy Tours')],
+        [InlineKeyboardButton('Your Perfect Travel', callback_data='filter_company_Your Perfect Travel')],
+        [InlineKeyboardButton('📊 Все фирмы', callback_data='filter_company_all')],
     ])

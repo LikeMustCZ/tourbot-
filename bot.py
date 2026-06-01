@@ -7,7 +7,7 @@ from config import BOT_TOKEN
 from sheets import ensure_setup
 from handlers import (
     start, main_menu, cancel, cancel_flow,
-    trips_menu, new_trip_start, new_trip_company, new_trip_route,
+    trips_menu, filter_company, new_trip_start, new_trip_company, new_trip_route,
     new_trip_seats, new_trip_confirm,
     trip_detail, trip_edit_menu, trip_edit_field,
     archive_trip, archive_confirm, archive_list, restore_trip,
@@ -47,6 +47,7 @@ def main():
             CommandHandler('start', start),
             CallbackQueryHandler(new_trip_start, pattern=r'^new_trip$'),
             CallbackQueryHandler(trips_menu, pattern=r'^trips_menu$'),
+            CallbackQueryHandler(filter_company, pattern=r'^filter_company_'),
             CallbackQueryHandler(trip_detail, pattern=r'^trip_[A-Z0-9]+$'),
             CallbackQueryHandler(trip_detail, pattern=r'^archive_detail_'),
             CallbackQueryHandler(booking_add_start, pattern=r'^add_booking_'),
@@ -79,7 +80,6 @@ def main():
             BOOKING_PASSENGERS: [CANCEL, MessageHandler(filters.TEXT & ~filters.COMMAND, booking_passengers)],
             BOOKING_PAID: [CANCEL, MessageHandler(filters.TEXT & ~filters.COMMAND, booking_paid)],
             BOOKING_BALANCE: [CANCEL, MessageHandler(filters.TEXT & ~filters.COMMAND, booking_balance)],
-            BOOKING_COMMENT: [CANCEL, MessageHandler(filters.TEXT & ~filters.COMMAND, booking_comment)],
             BOOKING_REVIEW: [CANCEL, MessageHandler(filters.TEXT & ~filters.COMMAND, booking_review)],
             BOOKING_CONFIRM: [CANCEL, CallbackQueryHandler(booking_confirm, pattern=r'^booking_(save|edit_restart)$')],
             BOOKING_EDIT_MENU: [CANCEL, CallbackQueryHandler(booking_edit_menu, pattern=r'^(bedit_|bdelete_|confirm_delete_)')],
@@ -89,7 +89,6 @@ def main():
             BOOKING_EDIT_LINK: [CANCEL, MessageHandler(filters.TEXT & ~filters.COMMAND, booking_edit_link)],
             BOOKING_DELETE_CONFIRM: [CANCEL, CallbackQueryHandler(booking_delete_confirm)],
             SEARCH_QUERY: [CANCEL, MessageHandler(filters.TEXT & ~filters.COMMAND, search_query)],
-            STATS_DETAIL: [CANCEL, CallbackQueryHandler(stats_detail, pattern=r'^stats_')],
         },
         fallbacks=[
             CommandHandler('cancel', cancel),

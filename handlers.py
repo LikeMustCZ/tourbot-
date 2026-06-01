@@ -71,37 +71,54 @@ async def main_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return await archive_list(update, ctx)
     elif text == '📊 Статистика':
         return await stats_menu(update, ctx)
+    elif text == '↩️ Назад / Отмена':
+        ctx.user_data.clear()
+        await update.message.reply_text("↩️ Отменено.", reply_markup=main_keyboard())
+        return ConversationHandler.END
     return ConversationHandler.END
 
 # ─── TRIPS LIST ───────────────────────────────────────
 
 async def show_trips(update, ctx):
-    trips = get_all_trips('active')
-    if not trips:
-        await update.message.reply_text(
-            "Активных поездок нет. Создай первую!",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('➕ Новая поездка', callback_data='new_trip')]])
-        )
-    else:
-        await update.message.reply_text(
-            "🗺 *Активные поездки:*",
-            parse_mode=ParseMode.MARKDOWN,
-            reply_markup=trips_list_keyboard(trips)
-        )
+    await update.message.reply_text(
+        "🗺 Выбери фирму:",
+        reply_markup=company_filter_keyboard()
+    )
     return ConversationHandler.END
 
 async def trips_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    trips = get_all_trips('active')
+    await query.edit_message_text(
+        "🗺 Выбери фирму:",
+        reply_markup=company_filter_keyboard()
+    )
+    return ConversationHandler.END
+
+async def filter_company(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Handle company filter button press - show trips for selected company."""
+    query = update.callback_query
+    await query.answer()
+    selected = query.data.replace('filter_company_', '')
+
+    if selected == 'all':
+        trips = get_all_trips('active')
+    else:
+        trips = [t for t in get_all_trips('active') if t.get('Company') == selected]
+
+    company_label = selected if selected != 'all' else 'Все фирмы'
+
     if not trips:
         await query.edit_message_text(
-            "Активных поездок нет. Создай первую!",
-            reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('➕ Новая поездка', callback_data='new_trip')]])
+            f"Активных поездок нет для «{company_label}».",
+            reply_markup=InlineKeyboardMarkup([
+                [InlineKeyboardButton('➕ Новая поездка', callback_data='new_trip')],
+                [InlineKeyboardButton('◀️ Назад', callback_data='trips_menu')],
+            ])
         )
     else:
         await query.edit_message_text(
-            "🗺 *Активные поездки:*",
+            f"🗺 *{company_label}:*",
             parse_mode=ParseMode.MARKDOWN,
             reply_markup=trips_list_keyboard(trips)
         )
@@ -164,14 +181,13 @@ async def new_trip_company(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(
         f"✅ Фирма: *{company}*\n\n"
         f"📍 Введи название поездки:\n_(например: Рим 3-6 июля или Верона/Венеция 20.08)_",
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=cancel_keyboard()
+        parse_mode=ParseMode.MARKDOWN
     )
     return TRIP_ROUTE
 
 async def new_trip_route(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data['new_trip']['route'] = update.message.text
-    await update.message.reply_text("💺 Сколько мест в автобусе?", reply_markup=cancel_keyboard())
+    await update.message.reply_text("💺 Сколько мест в автобусе?")
     return TRIP_SEATS
 
 async def new_trip_seats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -354,22 +370,20 @@ async def booking_add_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(
         f"➕ *Новая бронь*\n_{ctx.user_data['new_booking']['trip_name']}_\n\n"
         f"🔗 Ссылка на клиента:\n_(Instagram, Telegram или напиши 'нет')_",
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=cancel_keyboard()
+        parse_mode=ParseMode.MARKDOWN
     )
     return BOOKING_LINK
 
 async def booking_link(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data['new_booking']['link'] = update.message.text
-    await update.message.reply_text("🏙 Город выезда клиента:", reply_markup=cancel_keyboard())
+    await update.message.reply_text("🏙 Город выезда клиента:")
     return BOOKING_CITY
 
 async def booking_city(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data['new_booking']['city'] = update.message.text
     await update.message.reply_text(
         "💺 Сколько мест занимает бронь?\n_(просто число, например: 2)_",
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=cancel_keyboard()
+        parse_mode=ParseMode.MARKDOWN
     )
     return BOOKING_SEATS
 
@@ -380,12 +394,11 @@ async def booking_seats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             raise ValueError
         ctx.user_data['new_booking']['seats'] = seats
     except (ValueError, TypeError):
-        await update.message.reply_text("⚠️ Введи число, например: 2", reply_markup=cancel_keyboard())
+        await update.message.reply_text("⚠️ Введи число, например: 2")
         return BOOKING_SEATS
     await update.message.reply_text(
         "👥 Имена пассажиров:\n_(напиши всех как удобно, например:\nКатя Лутаенко, Иван Жуков)_",
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=cancel_keyboard()
+        parse_mode=ParseMode.MARKDOWN
     )
     return BOOKING_PASSENGERS
 
@@ -393,38 +406,28 @@ async def booking_passengers(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data['new_booking']['passengers'] = update.message.text
     await update.message.reply_text(
         "📱 Телефоны:\n_(напиши все номера, или 'нет' если нет)_",
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=cancel_keyboard()
+        parse_mode=ParseMode.MARKDOWN
     )
     return BOOKING_PAID
 
 async def booking_paid(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    # This step now captures phones, then asks paid
-    ctx.user_data['new_booking']['phones'] = update.message.text
+    ctx.user_data['new_booking']['paid'] = update.message.text
     await update.message.reply_text(
-        "💰 Сколько уже оплачено?\n_(например: 3000 или 3000кр)_",
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=cancel_keyboard()
+        "💳 Остаток к доплате?\n_(сумма или 0)_",
+        parse_mode=ParseMode.MARKDOWN
     )
     return BOOKING_BALANCE
 
 async def booking_balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    ctx.user_data['new_booking']['paid'] = update.message.text
-    await update.message.reply_text(
-        "💳 Остаток к доплате?\n_(сумма или 0)_",
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=cancel_keyboard()
-    )
-    return BOOKING_COMMENT
-
-async def booking_comment(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data['new_booking']['balance'] = update.message.text
     await update.message.reply_text(
         "💬 Комментарий?\n_(место у окна, день рождения и т.п. или 'нет')_",
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=cancel_keyboard()
+        parse_mode=ParseMode.MARKDOWN
     )
     return BOOKING_REVIEW
+
+async def booking_comment(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    pass  # no longer used in flow
 
 async def booking_review(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     comment = update.message.text
@@ -696,17 +699,9 @@ async def stats_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     else:
         send = lambda text, **kw: update.message.reply_text(text, **kw)
 
-    trips = get_all_trips('active')
-    if not trips:
-        await send("📊 Нет активных поездок.")
-        return ConversationHandler.END
-
-    await send(
-        "📊 *Статистика — выбери поездку:*",
-        parse_mode=ParseMode.MARKDOWN,
-        reply_markup=stats_trips_keyboard(trips)
-    )
-    return STATS_DETAIL
+    text = get_daily_report()
+    await send(text, parse_mode=ParseMode.MARKDOWN)
+    return ConversationHandler.END
 
 async def stats_detail(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
