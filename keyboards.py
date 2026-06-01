@@ -16,7 +16,7 @@ def main_keyboard():
 def trips_list_keyboard(trips):
     buttons = []
     for trip in trips:
-        label = f"{trip['Route']} | {trip['Date']} | {trip['Company']}"
+        label = f"{trip['Route']} | {trip['Company']}"
         buttons.append([InlineKeyboardButton(label, callback_data=f"trip_{trip['ID']}")])
     buttons.append([InlineKeyboardButton('➕ Новая поездка', callback_data='new_trip')])
     return InlineKeyboardMarkup(buttons)
@@ -67,7 +67,7 @@ def archive_confirm_keyboard(trip_id):
 def archive_list_keyboard(trips):
     buttons = []
     for trip in trips:
-        label = f"{trip['Route']} | {trip['Date']}"
+        label = f"{trip['Route']}"
         buttons.append([InlineKeyboardButton(label, callback_data=f"archive_detail_{trip['ID']}")])
     return InlineKeyboardMarkup(buttons)
 
@@ -155,7 +155,7 @@ def delete_confirm_keyboard(booking_id, trip_id):
 def stats_trips_keyboard(trips):
     buttons = []
     for trip in trips:
-        label = f"{trip['Route']} | {trip['Date']}"
+        label = f"{trip['Route']}"
         buttons.append([InlineKeyboardButton(label, callback_data=f"stats_{trip['ID']}")])
     buttons.append([InlineKeyboardButton('📊 Все поездки', callback_data='stats_all')])
     return InlineKeyboardMarkup(buttons)
