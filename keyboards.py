@@ -111,15 +111,28 @@ def booking_confirm_keyboard():
 
 # ─── СПИСОК БРОНЕЙ ───────────────────────────────────
 
+def _kb_money(v):
+    try:
+        return float(str(v or 0).replace(',', '.').replace(' ', '') or 0)
+    except (ValueError, TypeError):
+        # strip non-numeric chars
+        import re
+        cleaned = re.sub(r'[^0-9.]', '', str(v).replace(',', '.'))
+        try:
+            return float(cleaned) if cleaned else 0.0
+        except ValueError:
+            return 0.0
+
 def bookings_list_keyboard(bookings, trip_id):
     buttons = []
     for b in bookings:
-        passengers = b.get('Passengers', '').split(' | ')
-        first = passengers[0] if passengers else 'Без имени'
-        count = len(passengers)
-        balance = b.get('Balance', 0)
-        debt_icon = ' ⚠️' if float(str(balance or 0).replace(',', '.') or 0) > 0 else ' ✅'
-        label = f"{first}{' +' + str(count-1) if count > 1 else ''} | {b.get('City', '')}{debt_icon}"
+        names = b.get('Passengers', '') or 'Без имени'
+        # show first ~25 chars of names
+        short = names[:25] + ('…' if len(names) > 25 else '')
+        seats = b.get('Seats', '')
+        seats_label = f" ({seats}м)" if seats else ''
+        debt_icon = ' ⚠️' if _kb_money(b.get('Balance', 0)) > 0 else ' ✅'
+        label = f"{short}{seats_label} | {b.get('City', '')}{debt_icon}"
         buttons.append([InlineKeyboardButton(label, callback_data=f"booking_{b['ID']}")])
     buttons.append([InlineKeyboardButton('◀️ Назад к поездке', callback_data=f'trip_{trip_id}')])
     return InlineKeyboardMarkup(buttons)
@@ -165,4 +178,11 @@ def stats_trips_keyboard(trips):
 def skip_keyboard():
     return InlineKeyboardMarkup([
         [InlineKeyboardButton('Пропустить', callback_data='skip')]
+    ])
+
+# ─── ОТМЕНА (выход в меню на любом шаге) ──────────────
+
+def cancel_keyboard():
+    return InlineKeyboardMarkup([
+        [InlineKeyboardButton('❌ Отмена / В меню', callback_data='cancel_flow')]
     ])

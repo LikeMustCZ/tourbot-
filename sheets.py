@@ -21,7 +21,7 @@ TRIPS_HEADERS = [
 
 BOOKINGS_HEADERS = [
     'ID', 'Trip ID', 'Route', 'Company', 'Link', 'City',
-    'Passengers', 'Phones', 'Paid', 'Balance', 'Comment',
+    'Seats', 'Passengers', 'Phones', 'Paid', 'Balance', 'Comment',
     'Added By', 'Created At', 'Updated At'
 ]
 
@@ -151,7 +151,7 @@ def restore_trip_db(trip_id, user_name):
 
 # ─── BOOKINGS ────────────────────────────────────────
 
-def create_booking(trip_id, link, city, passengers, phones, paid, balance, comment, user_name):
+def create_booking(trip_id, link, city, seats, passengers, phones, paid, balance, comment, user_name):
     trip = get_trip_by_id(trip_id)
     sheet = get_bookings_sheet()
     booking_id = generate_id()
@@ -163,8 +163,9 @@ def create_booking(trip_id, link, city, passengers, phones, paid, balance, comme
         'Company': trip.get('Company', '') if trip else '',
         'Link': link,
         'City': city,
-        'Passengers': ' | '.join(passengers),
-        'Phones': ' | '.join(phones),
+        'Seats': seats,
+        'Passengers': passengers,
+        'Phones': phones,
         'Paid': paid,
         'Balance': balance,
         'Comment': comment,
@@ -172,7 +173,7 @@ def create_booking(trip_id, link, city, passengers, phones, paid, balance, comme
         'Created At': now,
         'Updated At': now,
     })
-    log_action(user_name, 'Добавлена бронь', f"{' | '.join(passengers)} → {trip.get('Route','') if trip else ''}")
+    log_action(user_name, 'Добавлена бронь', f"{passengers} → {trip.get('Route','') if trip else ''}")
     return booking_id
 
 def get_bookings_by_trip(trip_id):
@@ -236,8 +237,8 @@ def get_trip_stats(trip_id):
     bookings = get_bookings_by_trip(trip_id)
     total_seats = int(_to_float(trip.get('Total Seats', 0)))
     passengers_count = sum(
-        len(str(b.get('Passengers', '')).split(' | '))
-        for b in bookings if b.get('Passengers')
+        int(_to_float(b.get('Seats', 0))) if b.get('Seats') else 0
+        for b in bookings
     )
     total_paid = sum(_to_float(b.get('Paid')) for b in bookings)
     total_balance = sum(_to_float(b.get('Balance')) for b in bookings)

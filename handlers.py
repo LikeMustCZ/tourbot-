@@ -16,6 +16,23 @@ def user_name(update):
     u = update.effective_user
     return u.username or u.full_name or str(u.id)
 
+def parse_money(text):
+    """Extract a number from text like '9585кр', '1 325 CZK', '2,000'. Returns float."""
+    import re
+    if text is None:
+        return 0.0
+    s = str(text).replace(',', '.')
+    # keep digits and dots
+    cleaned = re.sub(r'[^0-9.]', '', s)
+    # collapse multiple dots
+    parts = cleaned.split('.')
+    if len(parts) > 2:
+        cleaned = parts[0] + '.' + ''.join(parts[1:])
+    try:
+        return float(cleaned) if cleaned else 0.0
+    except ValueError:
+        return 0.0
+
 # ─── START / CANCEL ───────────────────────────────────
 
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -30,6 +47,16 @@ async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data.clear()
     await update.message.reply_text("❌ Отменено.", reply_markup=main_keyboard())
+    return ConversationHandler.END
+
+async def cancel_flow(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Cancel from an inline button during any conversation step."""
+    query = update.callback_query
+    await query.answer()
+    ctx.user_data.clear()
+    await query.edit_message_text("❌ Отменено. Возвращаю в меню.")
+    # Re-show main menu as a fresh message so the reply keyboard is visible
+    await query.message.reply_text("Главное меню:", reply_markup=main_keyboard())
     return ConversationHandler.END
 
 # ─── MAIN MENU ────────────────────────────────────────
@@ -137,13 +164,14 @@ async def new_trip_company(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(
         f"✅ Фирма: *{company}*\n\n"
         f"📍 Введи название поездки:\n_(например: Рим 3-6 июля или Верона/Венеция 20.08)_",
-        parse_mode=ParseMode.MARKDOWN
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=cancel_keyboard()
     )
     return TRIP_ROUTE
 
 async def new_trip_route(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data['new_trip']['route'] = update.message.text
-    await update.message.reply_text("💺 Сколько мест в автобусе?")
+    await update.message.reply_text("💺 Сколько мест в автобусе?", reply_markup=cancel_keyboard())
     return TRIP_SEATS
 
 async def new_trip_seats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -326,87 +354,99 @@ async def booking_add_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await query.edit_message_text(
         f"➕ *Новая бронь*\n_{ctx.user_data['new_booking']['trip_name']}_\n\n"
         f"🔗 Ссылка на клиента:\n_(Instagram, Telegram или напиши 'нет')_",
-        parse_mode=ParseMode.MARKDOWN
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=cancel_keyboard()
     )
     return BOOKING_LINK
 
 async def booking_link(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data['new_booking']['link'] = update.message.text
-    await update.message.reply_text("🏙 Город выезда клиента:")
+    await update.message.reply_text("🏙 Город выезда клиента:", reply_markup=cancel_keyboard())
     return BOOKING_CITY
 
 async def booking_city(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data['new_booking']['city'] = update.message.text
-    await update.message.reply_text("👥 Сколько пассажиров?", reply_markup=passengers_count_keyboard())
-    return BOOKING_PASSENGERS_COUNT
+    await update.message.reply_text(
+        "💺 Сколько мест занимает бронь?\n_(просто число, например: 2)_",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=cancel_keyboard()
+    )
+    return BOOKING_SEATS
 
-async def booking_passengers_count(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    query = update.callback_query
-    await query.answer()
-    count = int(query.data.replace('pcount_', ''))
-    ctx.user_data['new_booking']['passengers_total'] = count
-    ctx.user_data['new_booking']['passengers'] = []
-    ctx.user_data['new_booking']['phones'] = []
-    ctx.user_data['new_booking']['current_passenger'] = 1
-    await query.edit_message_text("👤 Пассажир 1 — Имя Фамилия:")
-    return BOOKING_PASSENGER_NAME
+async def booking_seats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    try:
+        seats = int(parse_money(update.message.text))
+        if seats < 1:
+            raise ValueError
+        ctx.user_data['new_booking']['seats'] = seats
+    except (ValueError, TypeError):
+        await update.message.reply_text("⚠️ Введи число, например: 2", reply_markup=cancel_keyboard())
+        return BOOKING_SEATS
+    await update.message.reply_text(
+        "👥 Имена пассажиров:\n_(напиши всех как удобно, например:\nКатя Лутаенко, Иван Жуков)_",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=cancel_keyboard()
+    )
+    return BOOKING_PASSENGERS
 
-async def booking_passenger_name(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    ctx.user_data['new_booking']['current_name'] = update.message.text
-    n = ctx.user_data['new_booking']['current_passenger']
-    await update.message.reply_text(f"📱 Пассажир {n} — номер телефона:")
-    return BOOKING_PASSENGER_PHONE
-
-async def booking_passenger_phone(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    b = ctx.user_data['new_booking']
-    b['passengers'].append(b.pop('current_name'))
-    b['phones'].append(update.message.text)
-    total = b['passengers_total']
-    current = b['current_passenger']
-
-    if current < total:
-        b['current_passenger'] += 1
-        await update.message.reply_text(f"👤 Пассажир {current + 1} — Имя Фамилия:")
-        return BOOKING_PASSENGER_NAME
-
-    await update.message.reply_text("💰 Сколько уже оплачено?\n_(например: 1325)_", parse_mode=ParseMode.MARKDOWN)
+async def booking_passengers(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    ctx.user_data['new_booking']['passengers'] = update.message.text
+    await update.message.reply_text(
+        "📱 Телефоны:\n_(напиши все номера, или 'нет' если нет)_",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=cancel_keyboard()
+    )
     return BOOKING_PAID
 
 async def booking_paid(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    ctx.user_data['new_booking']['paid'] = update.message.text
-    await update.message.reply_text("💳 Остаток к доплате?\n_(введи сумму или 0)_", parse_mode=ParseMode.MARKDOWN)
+    # This step now captures phones, then asks paid
+    ctx.user_data['new_booking']['phones'] = update.message.text
+    await update.message.reply_text(
+        "💰 Сколько уже оплачено?\n_(например: 3000 или 3000кр)_",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=cancel_keyboard()
+    )
     return BOOKING_BALANCE
 
 async def booking_balance(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    ctx.user_data['new_booking']['balance'] = update.message.text
+    ctx.user_data['new_booking']['paid'] = update.message.text
     await update.message.reply_text(
-        "💬 Комментарий?\n_(место у окна, день рождения и т.п. или напиши 'нет')_",
-        parse_mode=ParseMode.MARKDOWN
+        "💳 Остаток к доплате?\n_(сумма или 0)_",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=cancel_keyboard()
     )
     return BOOKING_COMMENT
 
 async def booking_comment(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    ctx.user_data['new_booking']['balance'] = update.message.text
+    await update.message.reply_text(
+        "💬 Комментарий?\n_(место у окна, день рождения и т.п. или 'нет')_",
+        parse_mode=ParseMode.MARKDOWN,
+        reply_markup=cancel_keyboard()
+    )
+    return BOOKING_REVIEW
+
+async def booking_review(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     comment = update.message.text
     if comment.lower() == 'нет':
         comment = ''
     ctx.user_data['new_booking']['comment'] = comment
     b = ctx.user_data['new_booking']
 
-    passengers_list = '\n'.join([
-        f"  {i+1}. {p} | {ph}"
-        for i, (p, ph) in enumerate(zip(b['passengers'], b['phones']))
-    ])
-    balance_val = float(str(b['balance']).replace(',', '.') or 0)
+    balance_val = parse_money(b['balance'])
     debt_icon = '⚠️' if balance_val > 0 else '✅'
+    phones = b['phones'] if b['phones'].lower() != 'нет' else '—'
 
     text = (
         f"📋 *Проверь бронь:*\n\n"
         f"🗺 {b['trip_name']}\n"
         f"🔗 {b['link']}\n"
         f"🏙 {b['city']}\n"
-        f"👥 Пассажиры:\n{passengers_list}\n"
+        f"💺 Мест: {b['seats']}\n"
+        f"👥 {b['passengers']}\n"
+        f"📱 {phones}\n"
         f"💰 Оплачено: {b['paid']} | Долг: {b['balance']} {debt_icon}\n"
-        f"💬 {b['comment'] or '—'}"
+        f"💬 {comment or '—'}"
     )
     await update.message.reply_text(text, parse_mode=ParseMode.MARKDOWN, reply_markup=booking_confirm_keyboard())
     return BOOKING_CONFIRM
@@ -422,15 +462,17 @@ async def booking_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         ctx.user_data['new_booking'] = {'trip_id': trip_id, 'trip_name': trip_name}
         await query.edit_message_text(
             "🔗 Ссылка на клиента:\n_(Instagram, Telegram или 'нет')_",
-            parse_mode=ParseMode.MARKDOWN
+            parse_mode=ParseMode.MARKDOWN,
+            reply_markup=cancel_keyboard()
         )
         return BOOKING_LINK
 
     b = ctx.user_data['new_booking']
+    phones = b['phones'] if b['phones'].lower() != 'нет' else ''
     booking_id = create_booking(
-        b['trip_id'], b['link'], b['city'],
-        b['passengers'], b['phones'],
-        b['paid'], b['balance'], b['comment'],
+        b['trip_id'], b['link'], b['city'], b['seats'],
+        b['passengers'], phones,
+        b['paid'], b['balance'], b.get('comment', ''),
         user_name(update)
     )
     trip_id = b['trip_id']
@@ -469,7 +511,7 @@ async def booking_list(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
-    total = sum(len(b.get('Passengers', '').split(' | ')) for b in bookings if b.get('Passengers'))
+    total = sum(int(parse_money(b.get('Seats', 0))) if b.get('Seats') else 0 for b in bookings)
     await query.edit_message_text(
         f"📋 *{trip_name}*\nПассажиров: {total}\n\nВыбери бронь:",
         parse_mode=ParseMode.MARKDOWN,
@@ -496,10 +538,9 @@ async def booking_detail(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data['current_booking_id'] = booking_id
     ctx.user_data['current_trip_id'] = b.get('Trip ID')
 
-    passengers = b.get('Passengers', '').split(' | ')
-    phones = b.get('Phones', '').split(' | ')
-    passengers_list = '\n'.join([f"  {i+1}. {p} | {ph}" for i, (p, ph) in enumerate(zip(passengers, phones))])
-    balance_val = float(str(b.get('Balance', 0) or 0).replace(',', '.'))
+    passengers = b.get('Passengers', '') or '—'
+    phones = b.get('Phones', '') or '—'
+    balance_val = parse_money(b.get('Balance'))
     debt_icon = f"⚠️ Долг: {b.get('Balance', 0)}" if balance_val > 0 else "✅ Оплачено"
 
     text = (
@@ -507,7 +548,9 @@ async def booking_detail(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"🗺 {b.get('Route', '')}\n"
         f"🔗 {b.get('Link', '—')}\n"
         f"🏙 {b.get('City', '')}\n"
-        f"👥 Пассажиры:\n{passengers_list}\n"
+        f"💺 Мест: {b.get('Seats', '')}\n"
+        f"👥 {passengers}\n"
+        f"📱 {phones}\n"
         f"💰 Оплачено: {b.get('Paid', 0)} | {debt_icon}\n"
         f"💬 {b.get('Comment', '') or '—'}\n"
         f"📝 Добавил: {b.get('Added By', '')}"
@@ -587,9 +630,9 @@ async def booking_edit_paid(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     booking_id = ctx.user_data.get('edit_booking_id')
     b = get_booking_by_id(booking_id)
     try:
-        added = float(update.message.text.replace(',', '.'))
-        old_balance = float(str(b.get('Balance', 0) or 0).replace(',', '.'))
-        old_paid = float(str(b.get('Paid', 0) or 0).replace(',', '.'))
+        added = parse_money(update.message.text)
+        old_balance = parse_money(b.get('Balance'))
+        old_paid = parse_money(b.get('Paid'))
         new_balance = max(0, old_balance - added)
         new_paid = old_paid + added
         update_booking(booking_id, 'Balance', new_balance, user_name(update))
@@ -683,7 +726,7 @@ async def stats_detail(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     trip = stats['trip']
     bookings = get_bookings_by_trip(trip_id)
-    with_debt = [b for b in bookings if float(str(b.get('Balance', 0) or 0).replace(',', '.')) > 0]
+    with_debt = [b for b in bookings if parse_money(b.get('Balance')) > 0]
 
     text = (
         f"📊 *{trip['Route']}*\n"
@@ -725,7 +768,7 @@ async def search_query(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     buttons = []
     for b in results[:10]:
         passengers = b.get('Passengers', '')
-        balance_val = float(str(b.get('Balance', 0) or 0).replace(',', '.'))
+        balance_val = parse_money(b.get('Balance'))
         debt = f" | Долг: {b.get('Balance', 0)}" if balance_val > 0 else " | ✅"
         lines.append(
             f"*{passengers}*\n"
