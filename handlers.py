@@ -438,7 +438,6 @@ async def booking_review(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     balance_val = parse_money(b['balance'])
     debt_icon = '⚠️' if balance_val > 0 else '✅'
-    phones = b['phones'] if b['phones'].lower() != 'нет' else '—'
 
     text = (
         f"📋 *Проверь бронь:*\n\n"
@@ -447,7 +446,6 @@ async def booking_review(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         f"🏙 {b['city']}\n"
         f"💺 Мест: {b['seats']}\n"
         f"👥 {b['passengers']}\n"
-        f"📱 {phones}\n"
         f"💰 Оплачено: {b['paid']} | Долг: {b['balance']} {debt_icon}\n"
         f"💬 {comment or '—'}"
     )
@@ -471,7 +469,7 @@ async def booking_confirm(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return BOOKING_LINK
 
     b = ctx.user_data['new_booking']
-    phones = b['phones'] if b['phones'].lower() != 'нет' else ''
+    phones = b.get('phones', '')
     booking_id = create_booking(
         b['trip_id'], b['link'], b['city'], b['seats'],
         b['passengers'], phones,
