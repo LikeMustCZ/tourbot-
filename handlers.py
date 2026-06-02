@@ -405,7 +405,7 @@ async def booking_seats(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def booking_passengers(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data['new_booking']['passengers'] = update.message.text
     await update.message.reply_text(
-        "📱 Телефоны:\n_(напиши все номера, или 'нет' если нет)_",
+        "💰 Сколько уже оплачено?\n_(например: 3000 или 3000кр)_",
         parse_mode=ParseMode.MARKDOWN
     )
     return BOOKING_PAID
